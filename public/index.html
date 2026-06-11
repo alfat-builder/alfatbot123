@@ -1,0 +1,1744 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BotAI Dashboard</title>
+<style>
+  /* ── DESIGN TOKENS ── */
+  :root {
+    --bg:        #0d1117;
+    --bg2:       #161b22;
+    --bg3:       #21262d;
+    --border:    #30363d;
+    --accent:    #00d2a8;
+    --accent2:   #7c3aed;
+    --accent3:   #f59e0b;
+    --danger:    #ef4444;
+    --success:   #22c55e;
+    --text:      #e6edf3;
+    --text2:     #8b949e;
+    --text3:     #6e7681;
+    --glow:      0 0 20px rgba(0,210,168,.18);
+    --radius:    10px;
+    --radius-sm: 6px;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    --font:      'Inter', system-ui, -apple-system, sans-serif;
+    --sidebar-w: 220px;
+  }
+
+  /* ── RESET ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 14px; scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.6; min-height: 100vh; display: flex; flex-direction: column; }
+  button { cursor: pointer; border: none; font-family: inherit; transition: all .15s; }
+  input, textarea, select { font-family: inherit; }
+  a { color: var(--accent); text-decoration: none; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg2); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+  /* ── LAYOUT ── */
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: var(--sidebar-w); background: var(--bg2); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 100;
+    transition: transform .25s;
+  }
+  .sidebar-logo {
+    padding: 20px 16px 12px; display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .logo-text { font-weight: 700; font-size: 15px; letter-spacing: -.3px; }
+  .logo-sub { font-size: 10px; color: var(--text3); }
+
+  .sidebar-status {
+    padding: 10px 16px; display: flex; align-items: center; gap: 8px;
+    font-size: 11px; color: var(--text2); border-bottom: 1px solid var(--border);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text3); }
+  .dot.connected { background: var(--success); box-shadow: 0 0 8px var(--success); animation: pulse 2s infinite; }
+  .dot.qr { background: var(--accent3); box-shadow: 0 0 8px var(--accent3); animation: pulse 1s infinite; }
+  .dot.disconnected { background: var(--danger); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+  .sidebar-nav { flex: 1; overflow-y: auto; padding: 8px 8px; }
+  .nav-section { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .8px; padding: 10px 8px 4px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radius-sm);
+    color: var(--text2); font-size: 13px; cursor: pointer; transition: all .15s; user-select: none;
+  }
+  .nav-item:hover { background: var(--bg3); color: var(--text); }
+  .nav-item.active { background: rgba(0,210,168,.12); color: var(--accent); border-left: 2px solid var(--accent); padding-left: 8px; }
+  .nav-item .icon { font-size: 15px; width: 20px; text-align: center; }
+  .badge { margin-left: auto; background: var(--accent2); color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 99px; font-weight: 600; }
+
+  .sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text3); }
+
+  .main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; }
+
+  /* ── TOPBAR ── */
+  .topbar {
+    background: var(--bg2); border-bottom: 1px solid var(--border);
+    padding: 12px 24px; display: flex; align-items: center; gap: 12px;
+    position: sticky; top: 0; z-index: 90;
+  }
+  .topbar-title { font-size: 16px; font-weight: 600; flex: 1; }
+  .topbar-actions { display: flex; gap: 8px; }
+
+  /* ── CONTENT ── */
+  .content { padding: 24px; flex: 1; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 20px; margin-bottom: 16px;
+  }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .card-title .icon { font-size: 15px; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .stat-card {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px; position: relative; overflow: hidden;
+  }
+  .stat-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+  }
+  .stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; }
+  .stat-value { font-size: 26px; font-weight: 700; color: var(--text); font-family: var(--font-mono); margin: 4px 0; }
+  .stat-sub { font-size: 11px; color: var(--text2); }
+
+  /* ── GRID LAYOUTS ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  /* ── FORMS ── */
+  .form-group { margin-bottom: 14px; }
+  .form-label { display: block; font-size: 12px; font-weight: 500; color: var(--text2); margin-bottom: 6px; }
+  .form-input, .form-textarea, .form-select {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+    border-radius: var(--radius-sm); padding: 9px 12px; font-size: 13px; outline: none;
+    transition: border-color .15s;
+  }
+  .form-input:focus, .form-textarea:focus, .form-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,210,168,.1); }
+  .form-textarea { resize: vertical; min-height: 80px; font-family: var(--font-mono); line-height: 1.5; }
+  .form-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b949e' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; }
+  .form-hint { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .form-row { display: flex; gap: 10px; }
+  .form-row > * { flex: 1; }
+  .form-check { display: flex; align-items: center; gap: 8px; }
+  .form-check input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
+    border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+  }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: #00b896; box-shadow: var(--glow); }
+  .btn-secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: var(--border); }
+  .btn-danger { background: rgba(239,68,68,.12); color: var(--danger); border: 1px solid rgba(239,68,68,.3); }
+  .btn-danger:hover { background: rgba(239,68,68,.2); }
+  .btn-success { background: rgba(34,197,94,.12); color: var(--success); border: 1px solid rgba(34,197,94,.3); }
+  .btn-success:hover { background: rgba(34,197,94,.2); }
+  .btn-warning { background: rgba(245,158,11,.12); color: var(--accent3); border: 1px solid rgba(245,158,11,.3); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-icon { padding: 6px 8px; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  /* ── TOGGLE ── */
+  .toggle { position: relative; display: inline-block; width: 42px; height: 22px; cursor: pointer; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; inset: 0; background: var(--bg3); border: 1px solid var(--border); border-radius: 99px; transition: .2s; }
+  .toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px; background: var(--text3); border-radius: 50%; transition: .2s; }
+  .toggle input:checked + .toggle-slider { background: var(--accent); border-color: var(--accent); }
+  .toggle input:checked + .toggle-slider::before { transform: translateX(20px); background: #000; }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); }
+  tbody td { padding: 10px 12px; border-bottom: 1px solid rgba(48,54,61,.5); vertical-align: top; word-break: break-word; }
+  tbody tr:hover td { background: rgba(255,255,255,.02); }
+  tbody tr:last-child td { border-bottom: none; }
+  .td-code { font-family: var(--font-mono); font-size: 12px; color: var(--accent); background: rgba(0,210,168,.08); padding: 2px 6px; border-radius: 4px; display: inline-block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .td-response { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text2); font-size: 12px; }
+
+  /* ── TAGS ── */
+  .tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 500; }
+  .tag-green { background: rgba(34,197,94,.12); color: var(--success); }
+  .tag-red { background: rgba(239,68,68,.12); color: var(--danger); }
+  .tag-yellow { background: rgba(245,158,11,.12); color: var(--accent3); }
+  .tag-blue { background: rgba(96,165,250,.12); color: #60a5fa; }
+  .tag-purple { background: rgba(124,58,237,.12); color: #a78bfa; }
+
+  /* ── MODAL ── */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 16px; backdrop-filter: blur(4px); }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto; animation: modalIn .2s; }
+  @keyframes modalIn { from{transform:scale(.95);opacity:0} to{transform:scale(1);opacity:1} }
+  .modal-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .modal-title { font-size: 15px; font-weight: 600; }
+  .modal-close { background: none; color: var(--text2); font-size: 20px; padding: 2px 6px; border-radius: 4px; }
+  .modal-close:hover { background: var(--bg3); color: var(--text); }
+  .modal-body { padding: 20px; }
+  .modal-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+
+  /* ── MESSAGE LOG ── */
+  .msg-log { max-height: 360px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+  .msg-item {
+    padding: 8px 12px; border-radius: var(--radius-sm);
+    border-left: 3px solid var(--border); background: var(--bg3); font-size: 12px;
+  }
+  .msg-item.incoming { border-left-color: var(--accent); }
+  .msg-item.outgoing { border-left-color: var(--accent2); }
+  .msg-item.ai { border-left-color: #60a5fa; }
+  .msg-item.custom-cmd { border-left-color: var(--accent3); }
+  .msg-meta { display: flex; gap: 8px; color: var(--text3); font-size: 10px; margin-bottom: 3px; }
+  .msg-body { color: var(--text); line-height: 1.4; }
+
+  /* ── QR CODE ── */
+  .qr-section { text-align: center; padding: 20px; }
+  .qr-canvas { border: 4px solid var(--accent); border-radius: var(--radius); padding: 12px; background: white; display: inline-block; margin: 12px auto; }
+  .qr-info { font-size: 13px; color: var(--text2); max-width: 280px; margin: 0 auto; }
+
+  /* ── FIND & REPLACE ── */
+  .find-replace-section { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .find-replace-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; font-size: 13px; font-weight: 600; }
+  .preview-box {
+    background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 10px 12px; font-family: var(--font-mono); font-size: 12px; color: var(--text2);
+    min-height: 60px; white-space: pre-wrap; word-break: break-word; margin-top: 10px;
+    line-height: 1.6;
+  }
+  .preview-box .highlight { background: rgba(245,158,11,.25); color: var(--accent3); border-radius: 2px; }
+  .preview-box .replace { background: rgba(34,197,94,.2); color: var(--success); border-radius: 2px; }
+
+  /* ── CONTACT LIST ── */
+  .contact-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(48,54,61,.4); }
+  .contact-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--accent2), var(--accent)); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+  .contact-info { flex: 1; min-width: 0; }
+  .contact-name { font-weight: 500; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .contact-id { font-size: 11px; color: var(--text3); font-family: var(--font-mono); }
+  .contact-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+  /* ── TOAST ── */
+  #toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+  .toast { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 16px; font-size: 13px; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 20px rgba(0,0,0,.4); animation: toastIn .2s; min-width: 240px; max-width: 360px; }
+  @keyframes toastIn { from{transform:translateX(60px);opacity:0} to{transform:none;opacity:1} }
+  .toast-icon { font-size: 16px; }
+  .toast.success { border-left: 3px solid var(--success); }
+  .toast.error { border-left: 3px solid var(--danger); }
+  .toast.info { border-left: 3px solid var(--accent); }
+  .toast.warning { border-left: 3px solid var(--accent3); }
+
+  /* ── EMPTY STATE ── */
+  .empty { text-align: center; padding: 40px 20px; color: var(--text3); }
+  .empty-icon { font-size: 36px; margin-bottom: 10px; }
+  .empty-text { font-size: 14px; color: var(--text2); }
+  .empty-sub { font-size: 12px; margin-top: 4px; }
+
+  /* ── CODE BLOCK ── */
+  .code-block { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; font-family: var(--font-mono); font-size: 12px; color: var(--text2); overflow-x: auto; white-space: pre; }
+
+  /* ── BROADCAST ── */
+  .broadcast-list { max-height: 200px; overflow-y: auto; }
+  .broadcast-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; }
+  .broadcast-item input { accent-color: var(--accent); }
+
+  /* ── TABS ── */
+  .tabs { display: flex; gap: 2px; background: var(--bg3); border-radius: var(--radius); padding: 3px; margin-bottom: 16px; }
+  .tab { flex: 1; text-align: center; padding: 7px 12px; border-radius: calc(var(--radius) - 2px); font-size: 12px; font-weight: 500; color: var(--text2); cursor: pointer; transition: all .15s; }
+  .tab.active { background: var(--bg2); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+
+  /* ── VARIABLE DOCS ── */
+  .var-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .var-tag { font-family: var(--font-mono); font-size: 11px; background: rgba(0,210,168,.1); color: var(--accent); border: 1px solid rgba(0,210,168,.25); padding: 2px 8px; border-radius: 4px; cursor: pointer; }
+  .var-tag:hover { background: rgba(0,210,168,.2); }
+
+  /* ── RESPONSIVE ── */
+  .hamburger { display: none; background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: var(--radius-sm); font-size: 16px; }
+  @media (max-width: 768px) {
+    .sidebar { transform: translateX(-100%); }
+    .sidebar.open { transform: none; }
+    .main { margin-left: 0; }
+    .hamburger { display: flex; }
+    .content { padding: 16px; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- ──────────────── SIDEBAR ──────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🤖</div>
+      <div>
+        <div class="logo-text" id="botNameDisplay">BotAI</div>
+        <div class="logo-sub">WhatsApp Dashboard</div>
+      </div>
+    </div>
+
+    <div class="sidebar-status">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">Menghubungkan...</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">Utama</div>
+      <div class="nav-item active" onclick="showPage('overview')">
+        <span class="icon">📊</span> Overview
+      </div>
+      <div class="nav-item" onclick="showPage('messages')">
+        <span class="icon">💬</span> Pesan Live
+        <span class="badge" id="msgBadge">0</span>
+      </div>
+      <div class="nav-item" onclick="showPage('send')">
+        <span class="icon">📤</span> Kirim Pesan
+      </div>
+
+      <div class="nav-section">Manajemen</div>
+      <div class="nav-item" onclick="showPage('commands')">
+        <span class="icon">⚡</span> Custom Commands
+      </div>
+      <div class="nav-item" onclick="showPage('autoreply')">
+        <span class="icon">🔁</span> Auto Reply
+      </div>
+      <div class="nav-item" onclick="showPage('contacts')">
+        <span class="icon">👥</span> Kontak
+      </div>
+      <div class="nav-item" onclick="showPage('findreplace')">
+        <span class="icon">🔍</span> Find & Replace
+      </div>
+
+      <div class="nav-section">Konfigurasi</div>
+      <div class="nav-item" onclick="showPage('settings')">
+        <span class="icon">⚙️</span> Pengaturan
+      </div>
+      <div class="nav-item" onclick="showPage('aiprompt')">
+        <span class="icon">🧠</span> AI Prompt
+      </div>
+      <div class="nav-item" onclick="showPage('importexport')">
+        <span class="icon">📦</span> Import/Export
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div style="margin-bottom:4px;">💡 Dashboard v2.0</div>
+      <div id="wsStatus" style="color:var(--danger)">● WebSocket terputus</div>
+    </div>
+  </aside>
+
+  <!-- ──────────────── MAIN ──────────────── -->
+  <div class="main">
+    <div class="topbar">
+      <button class="hamburger" onclick="toggleSidebar()">☰</button>
+      <div class="topbar-title" id="pageTitle">Overview</div>
+      <div class="topbar-actions">
+        <label class="toggle" title="Toggle AI Global">
+          <input type="checkbox" id="globalAiToggle" onchange="toggleGlobalAI(this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+        <span style="font-size:12px;color:var(--text2)">AI</span>
+        <button class="btn btn-secondary btn-sm" onclick="refreshState()">↻ Refresh</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ════ PAGE: OVERVIEW ════ -->
+      <div class="page active" id="page-overview">
+        <div class="stats-grid" style="margin-bottom:16px">
+          <div class="stat-card">
+            <div class="stat-label">Total Pesan</div>
+            <div class="stat-value" id="stat-total">0</div>
+            <div class="stat-sub">Sepanjang sesi</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">AI Replies</div>
+            <div class="stat-value" id="stat-ai">0</div>
+            <div class="stat-sub">Oleh Groq LLM</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Commands</div>
+            <div class="stat-value" id="stat-cmd">0</div>
+            <div class="stat-sub">Built-in</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Custom Cmds</div>
+            <div class="stat-value" id="stat-custom">0</div>
+            <div class="stat-sub">User-defined</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Uptime</div>
+            <div class="stat-value" id="stat-uptime">0s</div>
+            <div class="stat-sub">Sejak restart</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">RAM Dipakai</div>
+            <div class="stat-value" id="stat-ram">-</div>
+            <div class="stat-sub" id="stat-ramtotal">dari -</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title"><span class="icon">📡</span> Status Koneksi</div>
+            <div id="connectionCard">
+              <div class="qr-section" id="qrSection" style="display:none">
+                <div style="font-size:13px;color:var(--accent3);margin-bottom:10px;">⚠️ Scan QR Code untuk menghubungkan WhatsApp</div>
+                <canvas class="qr-canvas" id="qrCanvas" width="200" height="200"></canvas>
+                <div class="qr-info">Buka WhatsApp → Linked Devices → Link a Device</div>
+              </div>
+              <div id="connectedInfo" style="display:none">
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 0">
+                  <div class="dot connected"></div>
+                  <span style="font-size:15px;font-weight:600;color:var(--success)">WhatsApp Terhubung ✓</span>
+                </div>
+                <div style="font-size:12px;color:var(--text2);margin-top:8px">Bot siap menerima dan membalas pesan secara otomatis.</div>
+                <div style="margin-top:14px;">
+                  <div style="font-size:11px;color:var(--text3);margin-bottom:6px">AI Global</div>
+                  <span id="aiStatusBadge" class="tag tag-green">● Aktif</span>
+                </div>
+              </div>
+              <div id="disconnectedInfo">
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 0">
+                  <div class="dot disconnected"></div>
+                  <span style="font-size:15px;color:var(--danger)">Tidak Terhubung</span>
+                </div>
+                <div style="font-size:12px;color:var(--text2)">Menunggu QR code atau koneksi...</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title"><span class="icon">📋</span> Ringkasan Konfigurasi</div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="color:var(--text2)">Custom Commands</span>
+                <span class="tag tag-blue" id="cfg-commands">0</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="color:var(--text2)">Auto Reply Rules</span>
+                <span class="tag tag-purple" id="cfg-autoreplies">0</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="color:var(--text2)">Kontak Dibisukan</span>
+                <span class="tag tag-yellow" id="cfg-muted">0</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="color:var(--text2)">Kontak Diblokir</span>
+                <span class="tag tag-red" id="cfg-blocked">0</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="color:var(--text2)">WebSocket Clients</span>
+                <span class="tag tag-green" id="cfg-ws">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title" style="justify-content:space-between">
+            <span><span class="icon">💬</span> Pesan Terkini</span>
+            <button class="btn btn-secondary btn-sm" onclick="showPage('messages')">Lihat Semua →</button>
+          </div>
+          <div class="msg-log" id="overviewMsgLog">
+            <div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Belum ada pesan</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ PAGE: MESSAGES ════ -->
+      <div class="page" id="page-messages">
+        <div class="card">
+          <div class="card-title" style="justify-content:space-between">
+            <span><span class="icon">💬</span> Log Pesan Live</span>
+            <div class="btn-group">
+              <select class="form-select" id="msgFilter" onchange="filterMessages()" style="width:140px">
+                <option value="">Semua Tipe</option>
+                <option value="incoming">Masuk</option>
+                <option value="ai">AI Reply</option>
+                <option value="custom-cmd">Custom Cmd</option>
+                <option value="auto-reply">Auto Reply</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" onclick="clearLogDisplay()">🗑️ Clear</button>
+            </div>
+          </div>
+          <div class="msg-log" id="fullMsgLog" style="max-height:500px">
+            <div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Menunggu pesan...</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ PAGE: SEND ════ -->
+      <div class="page" id="page-send">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title"><span class="icon">📤</span> Kirim Pesan</div>
+            <div class="form-group">
+              <label class="form-label">Nomor Tujuan</label>
+              <input class="form-input" id="sendTo" placeholder="628xxxxxxxxx (tanpa +)" />
+              <div class="form-hint">Format: 628123456789 (kode negara tanpa +)</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Pesan</label>
+              <textarea class="form-textarea" id="sendMsg" rows="4" placeholder="Tulis pesan di sini..."></textarea>
+            </div>
+            <button class="btn btn-primary" onclick="sendMessage()">📨 Kirim Pesan</button>
+          </div>
+
+          <div class="card">
+            <div class="card-title"><span class="icon">📣</span> Broadcast</div>
+            <div class="form-group">
+              <label class="form-label">Nomor (satu per baris)</label>
+              <textarea class="form-textarea" id="broadcastContacts" rows="4" placeholder="628111111111&#10;628222222222&#10;628333333333"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Pesan Broadcast</label>
+              <textarea class="form-textarea" id="broadcastMsg" rows="3" placeholder="Pesan yang akan dikirim ke semua kontak..."></textarea>
+            </div>
+            <button class="btn btn-primary" onclick="sendBroadcast()">📡 Kirim Broadcast</button>
+            <div class="form-hint" style="margin-top:8px">⚠️ Hati-hati: broadcast berlebihan bisa menyebabkan akun dibanned.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ PAGE: CUSTOM COMMANDS ════ -->
+      <div class="page" id="page-commands">
+        <div class="card">
+          <div class="card-title" style="justify-content:space-between">
+            <span><span class="icon">⚡</span> Custom Commands</span>
+            <button class="btn btn-primary btn-sm" onclick="openModal('addCommandModal')">+ Tambah Command</button>
+          </div>
+
+          <div style="margin-bottom:12px">
+            <input class="form-input" id="commandSearch" placeholder="🔍 Cari trigger atau deskripsi..." oninput="filterCommands()" />
+          </div>
+
+          <div class="table-wrap">
+            <table id="commandsTable">
+              <thead>
+                <tr>
+                  <th>Trigger</th>
+                  <th>Response</th>
+                  <th>Deskripsi</th>
+                  <th>Dibuat</th>
+                  <th style="text-align:right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="commandsBody">
+                <tr><td colspan="5"><div class="empty"><div class="empty-icon">⚡</div><div class="empty-text">Belum ada custom command</div><div class="empty-sub">Klik "+ Tambah Command" untuk membuat</div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="icon">💡</span> Variabel Tersedia dalam Response</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Klik untuk menyalin ke clipboard:</div>
+          <div class="var-list">
+            <span class="var-tag" onclick="copyToClip('{name}')">&#123;name&#125; — Nama kontak</span>
+            <span class="var-tag" onclick="copyToClip('{time}')">&#123;time&#125; — Waktu sekarang</span>
+            <span class="var-tag" onclick="copyToClip('{date}')">&#123;date&#125; — Tanggal sekarang</span>
+            <span class="var-tag" onclick="copyToClip('{args}')">&#123;args&#125; — Argumen setelah trigger</span>
+            <span class="var-tag" onclick="copyToClip('{chatid}')">&#123;chatid&#125; — ID chat</span>
+          </div>
+          <div style="margin-top:12px;font-size:12px;color:var(--text2)">
+            Contoh: <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">Halo {name}! Sekarang jam {time} 😊</code>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ PAGE: AUTO REPLY ════ -->
+      <div class="page" id="page-autoreply">
+        <div class="card">
+          <div class="card-title"><span class="icon">🔁</span> Auto Reply per Kontak</div>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Balas otomatis ketika pesan dari kontak tertentu mengandung kata kunci tertentu.</p>
+
+          <div class="form-group">
+            <label class="form-label">ID Chat / Nomor</label>
+            <input class="form-input" id="arChatId" placeholder="628xxxxxxxxx@c.us atau ID grup" />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Kata Kunci</label>
+              <input class="form-input" id="arKeyword" placeholder="harga, info, jadwal..." />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Balasan Otomatis</label>
+              <input class="form-input" id="arResponse" placeholder="Balasan yang dikirim..." />
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="addAutoReply()">+ Tambah Rule</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="icon">📋</span> Rule Yang Aktif</div>
+          <div id="autoRepliesList">
+            <div class="empty"><div class="empty-icon">🔁</div><div class="empty-text">Belum ada auto reply rule</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ PAGE: CONTACTS ════ -->
+      <div class="page" id="page-contacts">
+        <div class="card">
+          <div class="card-title"><span class="icon">👥</span> Manajemen Kontak</div>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Kelola pengaturan AI, mute, dan block per kontak. Masukkan nomor atau ID chat untuk mengelola.</p>
+
+          <div class="form-group">
+            <label class="form-label">Cari / Tambah Kontak</label>
+            <div style="display:flex;gap:8px">
+              <input class="form-input" id="contactInput" placeholder="628xxxxxxxxx atau 628xxxxxxxxx@c.us" style="flex:1"/>
+              <button class="btn btn-primary" onclick="addContactManual()">Kelola</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="icon">🔕</span> Kontak Dibisukan (Muted)</div>
+          <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Kontak ini tidak akan dibalas oleh AI maupun command apapun.</p>
+          <div id="mutedList">
+            <div class="empty"><div class="empty-icon">🔕</div><div class="empty-text">Tidak ada kontak yang dibisukan</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="icon">🚫</span> Kontak Diblokir</div>
+          <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Bot tidak akan memproses pesan dari kontak ini sama sekali.</p>
+          <div id="blockedList">
+            <div class="empty"><div class="empty-icon">🚫</div><div class="empty-text">Tidak ada kontak yang diblokir</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="icon">🤖</span> Override AI per Kontak</div>
+          <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Override pengaturan AI global untuk kontak tertentu.</p>
+          <div id="aiOverrideList">
+            <div class="empty"><div class="empty-icon">🤖</div><div class="empty-text">Tidak ada override AI</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ PAGE: FIND & REPLACE ════ -->
+      <div class="page" id="page-findreplace">
+        <div class="card">
+          <div class="card-title"><span class="icon">🔍</span> Find &amp; Replace</div>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:16px">
+            Cari dan ganti teks dalam response custom commands, mirip fitur VS Code.
+          </p>
+
+          <div class="tabs" id="frTabs">
+            <div class="tab active" onclick="switchFRTab('single')">Per Command</div>
+            <div class="tab" onclick="switchFRTab('global')">Global (Semua Commands)</div>
+          </div>
+
+          <div id="frSingle">
+            <div class="form-group">
+              <label class="form-label">Pilih Command</label>
+              <select class="form-select" id="frCommandSelect">
+                <option value="">— Pilih command —</option>
+              </select>
+            </div>
+          </div>
+          <div id="frGlobal" style="display:none">
+            <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;color:var(--accent3);margin-bottom:14px">
+              ⚠️ Mode global akan mengganti teks di SEMUA custom command responses.
+            </div>
+          </div>
+
+          <div class="find-replace-section">
+            <div class="find-replace-header">🔍 Pencarian</div>
+
+            <div class="form-row">
+              <div class="form-group" style="flex:1">
+                <label class="form-label">Cari (Find)</label>
+                <input class="form-input" id="frFind" placeholder="Teks yang dicari..." oninput="updatePreview()" />
+              </div>
+              <div class="form-group" style="flex:1">
+                <label class="form-label">Ganti dengan (Replace)</label>
+                <input class="form-input" id="frReplace" placeholder="Teks pengganti (kosong = hapus)..." oninput="updatePreview()" />
+              </div>
+            </div>
+
+            <div style="display:flex;gap:16px;margin-bottom:12px">
+              <label class="form-check">
+                <input type="checkbox" id="frCaseSensitive" onchange="updatePreview()" />
+                <span style="font-size:12px">Case Sensitive</span>
+              </label>
+              <label class="form-check">
+                <input type="checkbox" id="frUseRegex" onchange="updatePreview()" />
+                <span style="font-size:12px">Gunakan Regex</span>
+              </label>
+            </div>
+
+            <div>
+              <label class="form-label">Preview Perubahan</label>
+              <div class="preview-box" id="frPreview">Preview akan muncul di sini...</div>
+            </div>
+
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <button class="btn btn-warning" onclick="previewFR()">👁️ Preview</button>
+              <button class="btn btn-primary" onclick="applyFR()">✅ Terapkan</button>
+              <button class="btn btn-secondary" onclick="resetFR()">↩ Reset</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="icon">📖</span> Panduan Regex</div>
+          <div class="code-block">. → Sembarang karakter
+* → 0 atau lebih
++ → 1 atau lebih
+? → 0 atau 1
+\d → digit (0-9)
+\w → word char (a-z, A-Z, 0-9, _)
+\s → whitespace
+^ → awal string
+$ → akhir string
+[abc] → salah satu dari a, b, atau c
+(abc) → group
+a|b → a atau b
+
+Contoh:
+  \d+ → satu atau lebih angka
+  ^Halo → mulai dengan "Halo"
+  https?:// → http:// atau https://
+  \{name\} → literal {name}</div>
+        </div>
+      </div>
+
+      <!-- ════ PAGE: SETTINGS ════ -->
+      <div class="page" id="page-settings">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title"><span class="icon">⚙️</span> Pengaturan Bot</div>
+
+            <div class="form-group">
+              <label class="form-label">Nama Bot</label>
+              <input class="form-input" id="settingBotName" placeholder="BotAI" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Maks Riwayat Chat AI</label>
+              <input class="form-input" type="number" id="settingMaxHistory" min="2" max="50" placeholder="10" />
+              <div class="form-hint">Jumlah pasangan pesan yang diingat AI per kontak (2-50)</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-check">
+                <input type="checkbox" id="settingWelcome" onchange="toggleWelcome(this.checked)" />
+                <span class="form-label" style="margin:0">Aktifkan Pesan Welcome</span>
+              </label>
+            </div>
+            <div class="form-group" id="welcomeMsgGroup" style="display:none">
+              <label class="form-label">Pesan Welcome</label>
+              <textarea class="form-textarea" id="settingWelcomeMsg" rows="2" placeholder="Halo! Selamat datang..."></textarea>
+            </div>
+
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary" onclick="saveSettings()">💾 Simpan</button>
+              <button class="btn btn-danger btn-sm" onclick="resetStats()">🗑️ Reset Statistik</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title"><span class="icon">🤖</span> Kontrol AI</div>
+
+            <div class="form-group">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                <div>
+                  <div style="font-weight:500;font-size:13px">AI Global</div>
+                  <div style="font-size:12px;color:var(--text2)">Toggle AI untuk semua percakapan</div>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="settingAiEnabled" onchange="toggleGlobalAI(this.checked)">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Reset Riwayat AI</label>
+              <div style="display:flex;gap:8px">
+                <input class="form-input" id="resetHistoryChatId" placeholder="ChatID (kosong = semua)" style="flex:1"/>
+                <button class="btn btn-danger" onclick="resetHistory()">Reset</button>
+              </div>
+              <div class="form-hint">Menghapus memori percakapan AI</div>
+            </div>
+
+            <div class="form-group" style="padding-top:8px;border-top:1px solid var(--border)">
+              <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Statistik Sesi Ini</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <span class="tag tag-blue" id="settingStatTotal">Pesan: 0</span>
+                <span class="tag tag-green" id="settingStatAI">AI: 0</span>
+                <span class="tag tag-purple" id="settingStatCmd">Cmd: 0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ PAGE: AI PROMPT ════ -->
+      <div class="page" id="page-aiprompt">
+        <div class="card">
+          <div class="card-title"><span class="icon">🧠</span> System Prompt AI</div>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Konfigurasi kepribadian dan perilaku AI. Prompt ini dikirim sebagai instruksi sistem ke model Groq (Llama 3.3 70B).</p>
+
+          <div class="form-group">
+            <label class="form-label">System Prompt</label>
+            <textarea class="form-textarea" id="systemPromptInput" rows="14" placeholder="Kamu adalah asisten WhatsApp yang cerdas..."></textarea>
+          </div>
+
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="saveSystemPrompt()">💾 Simpan Prompt</button>
+            <button class="btn btn-secondary" onclick="resetSystemPrompt()">↩ Prompt Default</button>
+          </div>
+
+          <div style="margin-top:16px;padding:12px;background:var(--bg3);border-radius:var(--radius-sm);font-size:12px;color:var(--text2)">
+            <strong>💡 Tips:</strong><br>
+            • Tentukan nama bot, bahasa, dan gaya bicara<br>
+            • Beri batasan topik jika perlu<br>
+            • Tentukan panjang jawaban dan format yang diinginkan<br>
+            • Gunakan instruksi spesifik: "Selalu balas dalam Bahasa Indonesia"
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ PAGE: IMPORT / EXPORT ════ -->
+      <div class="page" id="page-importexport">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title"><span class="icon">📥</span> Import Custom Commands</div>
+            <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Upload file JSON atau paste data langsung.</p>
+
+            <div class="tabs">
+              <div class="tab active" onclick="switchImportTab('file')">Upload File</div>
+              <div class="tab" onclick="switchImportTab('paste')">Paste JSON</div>
+            </div>
+
+            <div id="importFile">
+              <div style="border:2px dashed var(--border);border-radius:var(--radius);padding:32px;text-align:center;cursor:pointer" onclick="document.getElementById('importInput').click()">
+                <div style="font-size:28px;margin-bottom:8px">📁</div>
+                <div style="font-size:13px;color:var(--text2)">Klik untuk pilih file JSON</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:4px">atau drag & drop di sini</div>
+              </div>
+              <input type="file" id="importInput" accept=".json" style="display:none" onchange="handleImportFile()" />
+            </div>
+            <div id="importPaste" style="display:none">
+              <textarea class="form-textarea" id="importPasteData" rows="8" placeholder='[&#10;  { "trigger": "!halo", "response": "Halo {name}!", "description": "Sapaan" },&#10;  ...&#10;]'></textarea>
+              <button class="btn btn-primary" style="margin-top:8px" onclick="importFromPaste()">📥 Import</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title"><span class="icon">📤</span> Export Custom Commands</div>
+            <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Unduh semua custom commands sebagai file JSON untuk backup atau transfer.</p>
+
+            <div id="exportPreview" style="background:var(--bg3);border-radius:var(--radius-sm);padding:12px;font-family:var(--font-mono);font-size:11px;color:var(--text2);max-height:200px;overflow-y:auto;margin-bottom:14px">
+              Klik "Preview" untuk melihat data...
+            </div>
+
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-secondary" onclick="previewExport()">👁️ Preview</button>
+              <button class="btn btn-primary" onclick="downloadExport()">⬇️ Download JSON</button>
+              <button class="btn btn-secondary" onclick="copyExport()">📋 Copy</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="icon">📄</span> Format JSON</div>
+          <div class="code-block">[
+  {
+    "trigger": "!harga",
+    "response": "Harga produk kami:\n• Basic: Rp 50.000\n• Pro: Rp 150.000",
+    "description": "Info harga produk"
+  },
+  {
+    "trigger": "!kontak",
+    "response": "Hubungi kami:\n📞 0812-xxxx-xxxx\n📧 email@domain.com",
+    "description": "Info kontak"
+  }
+]</div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<!-- ════════════ MODALS ════════════ -->
+
+<!-- Add Command Modal -->
+<div class="modal-overlay" id="addCommandModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="addCommandModalTitle">➕ Tambah Custom Command</div>
+      <button class="modal-close" onclick="closeModal('addCommandModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editCommandOldTrigger" />
+      <div class="form-group">
+        <label class="form-label">Trigger (kata kunci pemicu)</label>
+        <input class="form-input" id="cmdTrigger" placeholder="!harga atau kata kunci lain..." />
+        <div class="form-hint">Tidak harus pakai "!" — bisa kata biasa atau kalimat pendek</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Response</label>
+        <textarea class="form-textarea" id="cmdResponse" rows="6" placeholder="Pesan yang dikirim saat trigger terdeteksi...&#10;&#10;Gunakan {name}, {time}, {date}, {args}, {chatid} untuk variabel."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Deskripsi (opsional)</label>
+        <input class="form-input" id="cmdDescription" placeholder="Deskripsi singkat command ini..." />
+      </div>
+      <div style="font-size:12px;color:var(--text2);background:var(--bg3);padding:10px 12px;border-radius:var(--radius-sm)">
+        💡 Variabel: <code>{name}</code> <code>{time}</code> <code>{date}</code> <code>{args}</code> <code>{chatid}</code>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('addCommandModal')">Batal</button>
+      <button class="btn btn-primary" id="saveCommandBtn" onclick="saveCommand()">💾 Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Contact Manage Modal -->
+<div class="modal-overlay" id="contactModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">👤 Kelola Kontak</div>
+      <button class="modal-close" onclick="closeModal('contactModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="contactModalId" style="font-family:var(--font-mono);font-size:13px;background:var(--bg3);padding:10px;border-radius:var(--radius-sm);margin-bottom:16px;color:var(--text2)"></div>
+
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--bg3);border-radius:var(--radius-sm)">
+          <div>
+            <div style="font-weight:500;font-size:13px">🔕 Bisukan (Mute)</div>
+            <div style="font-size:11px;color:var(--text2)">Bot tidak akan membalas kontak ini</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="contactMuteToggle" onchange="setContactMute(this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--bg3);border-radius:var(--radius-sm)">
+          <div>
+            <div style="font-weight:500;font-size:13px">🚫 Blokir</div>
+            <div style="font-size:11px;color:var(--text2)">Bot mengabaikan pesan dari kontak ini</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="contactBlockToggle" onchange="setContactBlock(this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div style="padding:10px;background:var(--bg3);border-radius:var(--radius-sm)">
+          <div style="font-weight:500;font-size:13px;margin-bottom:8px">🤖 Override AI</div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Override pengaturan AI global untuk kontak ini</div>
+          <select class="form-select" id="contactAiSelect" onchange="setContactAI(this.value)">
+            <option value="global">Ikuti Pengaturan Global</option>
+            <option value="on">Aktifkan AI (ON)</option>
+            <option value="off">Matikan AI (OFF)</option>
+          </select>
+        </div>
+        <div style="padding:10px;background:var(--bg3);border-radius:var(--radius-sm)">
+          <div style="font-weight:500;font-size:13px;margin-bottom:6px">🗑️ Reset Memori AI</div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Hapus riwayat percakapan AI kontak ini</div>
+          <button class="btn btn-danger btn-sm" onclick="resetContactHistory()">Reset Memori</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('contactModal')">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<!-- ════════════ SCRIPTS ════════════ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+// ── STATE ──
+let appState = {};
+let ws = null;
+let wsReconnectTimer = null;
+let activeContactModal = null;
+let frMode = 'single';
+let importTabMode = 'file';
+let allMessages = [];
+
+// ── WEBSOCKET ──
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}`);
+
+  ws.onopen = () => {
+    document.getElementById('wsStatus').style.color = 'var(--success)';
+    document.getElementById('wsStatus').textContent = '● WebSocket terhubung';
+    if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+  };
+
+  ws.onmessage = (ev) => {
+    try { handleWsMessage(JSON.parse(ev.data)); } catch (e) {}
+  };
+
+  ws.onclose = ws.onerror = () => {
+    document.getElementById('wsStatus').style.color = 'var(--danger)';
+    document.getElementById('wsStatus').textContent = '● WebSocket terputus';
+    wsReconnectTimer = setTimeout(connectWS, 3000);
+  };
+}
+
+function handleWsMessage(msg) {
+  switch (msg.type) {
+    case 'init':
+    case 'stateUpdate':
+      appState = msg.data;
+      updateUI();
+      break;
+    case 'newMessage':
+      addMessageToLog(msg.data);
+      break;
+    case 'status':
+      updateBotStatus(msg.data, msg.reason);
+      break;
+    case 'qr':
+      showQR(msg.data);
+      break;
+    case 'stats':
+      updateStats(msg.data);
+      break;
+  }
+}
+
+// ── API ──
+async function api(method, url, body) {
+  try {
+    const res = await fetch('/api' + url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    return await res.json();
+  } catch (e) {
+    toast('Gagal terhubung ke server', 'error');
+    return { ok: false, error: e.message };
+  }
+}
+
+async function refreshState() {
+  const data = await api('GET', '/state');
+  if (data.ok !== false) { appState = data; updateUI(); }
+}
+
+// ── UI UPDATE ──
+function updateUI() {
+  if (!appState) return;
+  updateStats(appState.stats);
+  updateBotStatus(appState.qrCode ? 'qr' : (appState.stats ? 'connected' : 'disconnected'));
+  if (appState.qrCode) showQR(appState.qrCode);
+
+  // Nav badge
+  document.getElementById('msgBadge').textContent = allMessages.length;
+
+  // Global AI toggle
+  const aiEnabled = appState.aiEnabled !== false;
+  document.getElementById('globalAiToggle').checked = aiEnabled;
+  document.getElementById('settingAiEnabled') && (document.getElementById('settingAiEnabled').checked = aiEnabled);
+  document.getElementById('aiStatusBadge') && (document.getElementById('aiStatusBadge').textContent = aiEnabled ? '● Aktif' : '● Nonaktif');
+  document.getElementById('aiStatusBadge') && (document.getElementById('aiStatusBadge').className = 'tag ' + (aiEnabled ? 'tag-green' : 'tag-red'));
+
+  // Bot name
+  if (appState.botName) {
+    document.getElementById('botNameDisplay').textContent = appState.botName;
+    document.getElementById('settingBotName') && (document.getElementById('settingBotName').value = appState.botName);
+  }
+
+  // Settings
+  if (appState.maxHistory) document.getElementById('settingMaxHistory') && (document.getElementById('settingMaxHistory').value = appState.maxHistory);
+  if (appState.welcomeEnabled !== undefined) {
+    document.getElementById('settingWelcome') && (document.getElementById('settingWelcome').checked = appState.welcomeEnabled);
+    document.getElementById('welcomeMsgGroup') && (document.getElementById('welcomeMsgGroup').style.display = appState.welcomeEnabled ? 'block' : 'none');
+  }
+  if (appState.welcomeMessage) document.getElementById('settingWelcomeMsg') && (document.getElementById('settingWelcomeMsg').value = appState.welcomeMessage);
+  if (appState.aiSystemPrompt) document.getElementById('systemPromptInput') && (document.getElementById('systemPromptInput').value = appState.aiSystemPrompt);
+
+  // Config summary
+  const cmdCount = Object.keys(appState.customCommands || {}).length;
+  const arCount = Object.values(appState.autoReplies || {}).reduce((s, v) => s + Object.keys(v).length, 0);
+  const mutedCount = Object.keys(appState.mutedContacts || {}).length;
+  const blockedCount = Object.keys(appState.blockedContacts || {}).length;
+
+  document.getElementById('cfg-commands') && (document.getElementById('cfg-commands').textContent = cmdCount);
+  document.getElementById('cfg-autoreplies') && (document.getElementById('cfg-autoreplies').textContent = arCount);
+  document.getElementById('cfg-muted') && (document.getElementById('cfg-muted').textContent = mutedCount);
+  document.getElementById('cfg-blocked') && (document.getElementById('cfg-blocked').textContent = blockedCount);
+  document.getElementById('cfg-ws') && (document.getElementById('cfg-ws').textContent = appState.stats?.connectedClients || 0);
+
+  renderCommandsTable();
+  renderAutoReplies();
+  renderContactLists();
+  renderFRCommandSelect();
+
+  // Recent messages
+  if (appState.recentMessages) {
+    allMessages = appState.recentMessages;
+    renderMessages();
+  }
+}
+
+function updateStats(s) {
+  if (!s) return;
+  const fmt = (v) => v >= 1000 ? (v/1000).toFixed(1)+'k' : v;
+  document.getElementById('stat-total') && (document.getElementById('stat-total').textContent = fmt(s.totalMessages || 0));
+  document.getElementById('stat-ai') && (document.getElementById('stat-ai').textContent = fmt(s.aiReplies || 0));
+  document.getElementById('stat-cmd') && (document.getElementById('stat-cmd').textContent = fmt(s.commandsUsed || 0));
+  document.getElementById('stat-custom') && (document.getElementById('stat-custom').textContent = fmt(s.customCommandsTriggered || 0));
+  document.getElementById('stat-uptime') && (document.getElementById('stat-uptime').textContent = formatUptime(s.uptime || 0));
+  if (s.ramFree !== undefined && s.ramTotal !== undefined) {
+    const used = s.ramTotal - s.ramFree;
+    document.getElementById('stat-ram') && (document.getElementById('stat-ram').textContent = fmtBytes(used));
+    document.getElementById('stat-ramtotal') && (document.getElementById('stat-ramtotal').textContent = 'dari ' + fmtBytes(s.ramTotal));
+  }
+  document.getElementById('settingStatTotal') && (document.getElementById('settingStatTotal').textContent = 'Pesan: ' + (s.totalMessages || 0));
+  document.getElementById('settingStatAI') && (document.getElementById('settingStatAI').textContent = 'AI: ' + (s.aiReplies || 0));
+  document.getElementById('settingStatCmd') && (document.getElementById('settingStatCmd').textContent = 'Cmd: ' + (s.commandsUsed || 0));
+}
+
+function updateBotStatus(status, reason) {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  dot.className = 'dot ' + status;
+  txt.textContent = { connected: 'Terhubung', qr: 'Scan QR Code', disconnected: 'Terputus', auth_failed: 'Auth Gagal' }[status] || status;
+
+  const qrSection = document.getElementById('qrSection');
+  const connectedInfo = document.getElementById('connectedInfo');
+  const disconnectedInfo = document.getElementById('disconnectedInfo');
+  if (qrSection && connectedInfo && disconnectedInfo) {
+    qrSection.style.display = status === 'qr' ? 'block' : 'none';
+    connectedInfo.style.display = status === 'connected' ? 'block' : 'none';
+    disconnectedInfo.style.display = status === 'connected' || status === 'qr' ? 'none' : 'block';
+  }
+}
+
+let qrCodeInstance = null;
+function showQR(qr) {
+  const canvas = document.getElementById('qrCanvas');
+  if (!canvas) return;
+  if (qrCodeInstance) { qrCodeInstance.clear(); qrCodeInstance.makeCode(qr); return; }
+  qrCodeInstance = new QRCode(canvas, { text: qr, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.H });
+}
+
+// ── MESSAGES ──
+function addMessageToLog(msg) {
+  allMessages.unshift(msg);
+  if (allMessages.length > 500) allMessages.pop();
+  document.getElementById('msgBadge').textContent = allMessages.length;
+  renderMessages();
+}
+
+function renderMessages() {
+  const filter = document.getElementById('msgFilter')?.value || '';
+  const msgs = filter ? allMessages.filter(m => m.type === filter) : allMessages;
+  renderMsgList('fullMsgLog', msgs.slice(0, 200));
+  renderMsgList('overviewMsgLog', msgs.slice(0, 10));
+}
+
+function renderMsgList(id, msgs) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (!msgs.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Tidak ada pesan</div></div>'; return; }
+  el.innerHTML = msgs.map(m => {
+    const isBot = m.from === 'bot';
+    const typeLabel = { ai: '🤖 AI', 'custom-cmd': '⚡ Custom', 'auto-reply': '🔁 Auto', incoming: '📨 Masuk' }[m.type] || '💬';
+    const cls = isBot ? (m.type === 'ai' ? 'ai' : m.type === 'custom-cmd' ? 'custom-cmd' : 'outgoing') : 'incoming';
+    const time = m.timestamp ? new Date(m.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+    const chatId = (m.chatId || '').replace('@c.us', '').replace('@g.us', '(grup)');
+    return `<div class="msg-item ${cls}">
+      <div class="msg-meta"><span>${typeLabel}</span><span>${chatId}</span><span>${time}</span></div>
+      <div class="msg-body">${escHtml(m.body?.slice(0, 200))}${m.body?.length > 200 ? '...' : ''}</div>
+    </div>`;
+  }).join('');
+}
+
+function filterMessages() { renderMessages(); }
+function clearLogDisplay() {
+  allMessages = [];
+  renderMessages();
+  document.getElementById('msgBadge').textContent = 0;
+}
+
+// ── COMMANDS TABLE ──
+function renderCommandsTable() {
+  const cmds = appState.customCommands || {};
+  const search = (document.getElementById('commandSearch')?.value || '').toLowerCase();
+  const entries = Object.entries(cmds).filter(([t, v]) =>
+    !search || t.includes(search) || (v.description||'').toLowerCase().includes(search) || v.response.toLowerCase().includes(search)
+  );
+
+  const tbody = document.getElementById('commandsBody');
+  if (!tbody) return;
+  if (!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="5"><div class="empty"><div class="empty-icon">⚡</div><div class="empty-text">${search ? 'Tidak ada hasil' : 'Belum ada custom command'}</div></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = entries.map(([trigger, v]) => `
+    <tr>
+      <td><span class="td-code">${escHtml(trigger)}</span></td>
+      <td><span class="td-response">${escHtml(v.response)}</span></td>
+      <td style="font-size:12px;color:var(--text2)">${escHtml(v.description || '—')}</td>
+      <td style="font-size:11px;color:var(--text3)">${v.createdAt ? new Date(v.createdAt).toLocaleDateString('id-ID') : '—'}</td>
+      <td style="text-align:right">
+        <div class="btn-group" style="justify-content:flex-end">
+          <button class="btn btn-secondary btn-sm btn-icon" title="Edit" onclick="editCommand('${escHtml(trigger.replace(/'/g, "\\'"))}')">✏️</button>
+          <button class="btn btn-warning btn-sm btn-icon" title="Find & Replace" onclick="openFRForCommand('${escHtml(trigger.replace(/'/g, "\\'"))}')">🔍</button>
+          <button class="btn btn-danger btn-sm btn-icon" title="Hapus" onclick="deleteCommand('${escHtml(trigger.replace(/'/g, "\\'"))}')">🗑️</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function filterCommands() { renderCommandsTable(); }
+
+async function saveCommand() {
+  const oldTrigger = document.getElementById('editCommandOldTrigger').value;
+  const trigger = document.getElementById('cmdTrigger').value.trim();
+  const response = document.getElementById('cmdResponse').value.trim();
+  const description = document.getElementById('cmdDescription').value.trim();
+  if (!trigger || !response) return toast('Trigger dan response wajib diisi', 'error');
+
+  let res;
+  if (oldTrigger) {
+    res = await api('PUT', '/custom-commands', { trigger: oldTrigger, newTrigger: trigger, response, description });
+  } else {
+    res = await api('POST', '/custom-commands', { trigger, response, description });
+  }
+  if (res.ok !== false) {
+    toast(oldTrigger ? 'Command diperbarui!' : 'Command ditambahkan!', 'success');
+    closeModal('addCommandModal');
+    document.getElementById('cmdTrigger').value = '';
+    document.getElementById('cmdResponse').value = '';
+    document.getElementById('cmdDescription').value = '';
+    document.getElementById('editCommandOldTrigger').value = '';
+  } else toast(res.error, 'error');
+}
+
+function editCommand(trigger) {
+  const cmd = appState.customCommands?.[trigger];
+  if (!cmd) return;
+  document.getElementById('addCommandModalTitle').textContent = '✏️ Edit Custom Command';
+  document.getElementById('editCommandOldTrigger').value = trigger;
+  document.getElementById('cmdTrigger').value = trigger;
+  document.getElementById('cmdResponse').value = cmd.response;
+  document.getElementById('cmdDescription').value = cmd.description || '';
+  document.getElementById('saveCommandBtn').textContent = '💾 Update';
+  openModal('addCommandModal');
+}
+
+async function deleteCommand(trigger) {
+  if (!confirm(`Hapus command "${trigger}"?`)) return;
+  const res = await api('DELETE', '/custom-commands', { trigger });
+  if (res.ok !== false) toast('Command dihapus', 'success');
+  else toast(res.error, 'error');
+}
+
+function openAddCommand() {
+  document.getElementById('addCommandModalTitle').textContent = '➕ Tambah Custom Command';
+  document.getElementById('editCommandOldTrigger').value = '';
+  document.getElementById('cmdTrigger').value = '';
+  document.getElementById('cmdResponse').value = '';
+  document.getElementById('cmdDescription').value = '';
+  document.getElementById('saveCommandBtn').textContent = '💾 Simpan';
+  openModal('addCommandModal');
+}
+
+// ── AUTO REPLY ──
+async function addAutoReply() {
+  const chatId = document.getElementById('arChatId').value.trim();
+  const keyword = document.getElementById('arKeyword').value.trim();
+  const response = document.getElementById('arResponse').value.trim();
+  if (!chatId || !keyword || !response) return toast('Semua field wajib diisi', 'error');
+  const id = chatId.includes('@') ? chatId : `${chatId}@c.us`;
+  const res = await api('POST', '/auto-reply', { chatId: id, keyword, response });
+  if (res.ok !== false) {
+    toast('Auto reply ditambahkan!', 'success');
+    document.getElementById('arKeyword').value = '';
+    document.getElementById('arResponse').value = '';
+  } else toast(res.error, 'error');
+}
+
+function renderAutoReplies() {
+  const ar = appState.autoReplies || {};
+  const el = document.getElementById('autoRepliesList');
+  if (!el) return;
+  const entries = Object.entries(ar);
+  if (!entries.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">🔁</div><div class="empty-text">Belum ada auto reply rule</div></div>'; return; }
+
+  el.innerHTML = entries.map(([chatId, keywords]) =>
+    `<div style="margin-bottom:12px">
+      <div style="font-size:12px;font-weight:600;color:var(--accent);font-family:var(--font-mono);margin-bottom:6px">${chatId}</div>
+      ${Object.entries(keywords).map(([kw, resp]) =>
+        `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg3);border-radius:var(--radius-sm);margin-bottom:4px">
+          <span class="tag tag-blue" style="flex-shrink:0">${escHtml(kw)}</span>
+          <span style="flex:1;font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(resp)}</span>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteAutoReply('${chatId}','${kw.replace(/'/g,"\\'")}')" title="Hapus">🗑️</button>
+        </div>`
+      ).join('')}
+    </div>`
+  ).join('');
+}
+
+async function deleteAutoReply(chatId, keyword) {
+  const res = await api('DELETE', '/auto-reply', { chatId, keyword });
+  if (res.ok !== false) toast('Auto reply dihapus', 'success');
+  else toast(res.error, 'error');
+}
+
+// ── CONTACTS ──
+function renderContactLists() {
+  renderContactList('mutedList', appState.mutedContacts || {}, 'muted');
+  renderContactList('blockedList', appState.blockedContacts || {}, 'blocked');
+  renderAIOverrideList();
+}
+
+function renderContactList(id, obj, type) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const entries = Object.keys(obj);
+  if (!entries.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">${type === 'muted' ? '🔕' : '🚫'}</div><div class="empty-text">Tidak ada kontak</div></div>`;
+    return;
+  }
+  el.innerHTML = entries.map(chatId => `
+    <div class="contact-item">
+      <div class="contact-avatar">${chatId.slice(0,2).toUpperCase()}</div>
+      <div class="contact-info">
+        <div class="contact-name">${chatId.replace('@c.us','').replace('@g.us',' (Grup)')}</div>
+        <div class="contact-id">${chatId}</div>
+      </div>
+      <div class="contact-actions">
+        <button class="btn btn-secondary btn-sm" onclick="manageContact('${chatId}')">⚙️</button>
+        <button class="btn btn-danger btn-sm" onclick="${type === 'muted' ? `unmuteContact('${chatId}')` : `unblockContact('${chatId}')`}">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderAIOverrideList() {
+  const el = document.getElementById('aiOverrideList');
+  if (!el) return;
+  const overrides = appState.aiModeContacts || {};
+  const entries = Object.entries(overrides);
+  if (!entries.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">🤖</div><div class="empty-text">Tidak ada override AI</div></div>'; return; }
+  el.innerHTML = entries.map(([chatId, enabled]) => `
+    <div class="contact-item">
+      <div class="contact-avatar">${chatId.slice(0,2).toUpperCase()}</div>
+      <div class="contact-info">
+        <div class="contact-name">${chatId.replace('@c.us','')}</div>
+        <div class="contact-id">${chatId}</div>
+      </div>
+      <div class="contact-actions">
+        <span class="tag ${enabled ? 'tag-green' : 'tag-red'}">${enabled ? 'AI ON' : 'AI OFF'}</span>
+        <button class="btn btn-secondary btn-sm" onclick="removeAIOverride('${chatId}')">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function addContactManual() {
+  const input = document.getElementById('contactInput').value.trim();
+  if (!input) return toast('Masukkan nomor atau ID chat', 'error');
+  const chatId = input.includes('@') ? input : `${input}@c.us`;
+  manageContact(chatId);
+}
+
+function manageContact(chatId) {
+  activeContactModal = chatId;
+  document.getElementById('contactModalId').textContent = chatId;
+  document.getElementById('contactMuteToggle').checked = !!(appState.mutedContacts?.[chatId]);
+  document.getElementById('contactBlockToggle').checked = !!(appState.blockedContacts?.[chatId]);
+  const aiMode = appState.aiModeContacts?.[chatId];
+  document.getElementById('contactAiSelect').value = aiMode === true ? 'on' : aiMode === false ? 'off' : 'global';
+  openModal('contactModal');
+}
+
+async function setContactMute(muted) {
+  if (!activeContactModal) return;
+  await api('POST', '/contacts/mute', { chatId: activeContactModal, muted });
+}
+
+async function setContactBlock(blocked) {
+  if (!activeContactModal) return;
+  await api('POST', '/contacts/block', { chatId: activeContactModal, blocked });
+}
+
+async function setContactAI(val) {
+  if (!activeContactModal) return;
+  const enabled = val === 'on' ? true : val === 'off' ? false : null;
+  await api('POST', '/contacts/ai-mode', { chatId: activeContactModal, enabled });
+}
+
+async function resetContactHistory() {
+  if (!activeContactModal) return;
+  await api('POST', '/reset-history', { chatId: activeContactModal });
+  toast('Memori AI direset', 'success');
+}
+
+async function unmuteContact(chatId) {
+  await api('POST', '/contacts/mute', { chatId, muted: false });
+}
+
+async function unblockContact(chatId) {
+  await api('POST', '/contacts/block', { chatId, blocked: false });
+}
+
+async function removeAIOverride(chatId) {
+  await api('POST', '/contacts/ai-mode', { chatId, enabled: null });
+}
+
+// ── FIND & REPLACE ──
+function switchFRTab(mode) {
+  frMode = mode;
+  document.getElementById('frSingle').style.display = mode === 'single' ? 'block' : 'none';
+  document.getElementById('frGlobal').style.display = mode === 'global' ? 'block' : 'none';
+  document.querySelectorAll('#frTabs .tab').forEach((t, i) => t.classList.toggle('active', (i === 0 && mode === 'single') || (i === 1 && mode === 'global')));
+  updatePreview();
+}
+
+function renderFRCommandSelect() {
+  const sel = document.getElementById('frCommandSelect');
+  if (!sel) return;
+  const cmds = Object.keys(appState.customCommands || {});
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Pilih command —</option>' + cmds.map(t => `<option value="${escHtml(t)}">${escHtml(t)}</option>`).join('');
+  if (cur && cmds.includes(cur)) sel.value = cur;
+}
+
+function openFRForCommand(trigger) {
+  showPage('findreplace');
+  setTimeout(() => {
+    document.getElementById('frCommandSelect') && (document.getElementById('frCommandSelect').value = trigger);
+    updatePreview();
+  }, 100);
+}
+
+function updatePreview() {
+  const find = document.getElementById('frFind')?.value;
+  const replace = document.getElementById('frReplace')?.value || '';
+  const caseSensitive = document.getElementById('frCaseSensitive')?.checked;
+  const useRegex = document.getElementById('frUseRegex')?.checked;
+  const preview = document.getElementById('frPreview');
+  if (!preview) return;
+
+  let source = '';
+  if (frMode === 'single') {
+    const trigger = document.getElementById('frCommandSelect')?.value;
+    if (!trigger) { preview.textContent = 'Pilih command terlebih dahulu...'; return; }
+    source = appState.customCommands?.[trigger]?.response || '';
+  } else {
+    const allResponses = Object.entries(appState.customCommands || {}).map(([t, v]) => `[${t}]: ${v.response}`).join('\n\n');
+    source = allResponses || '(tidak ada custom commands)';
+  }
+
+  if (!find) { preview.innerHTML = escHtml(source); return; }
+
+  try {
+    const flags = caseSensitive ? 'g' : 'gi';
+    const pattern = useRegex ? new RegExp(find, flags) : new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
+    const highlighted = source.replace(pattern, (match) =>
+      `<span class="replace">${escHtml(replace)}</span>`
+    );
+    preview.innerHTML = highlighted;
+  } catch (e) {
+    preview.innerHTML = `<span style="color:var(--danger)">Regex error: ${e.message}</span>`;
+  }
+}
+
+async function previewFR() {
+  const find = document.getElementById('frFind')?.value;
+  if (!find) return toast('Masukkan teks yang dicari', 'warning');
+  updatePreview();
+  toast('Preview diperbarui', 'info');
+}
+
+async function applyFR() {
+  const find = document.getElementById('frFind')?.value;
+  const replace = document.getElementById('frReplace')?.value || '';
+  const caseSensitive = document.getElementById('frCaseSensitive')?.checked;
+  const useRegex = document.getElementById('frUseRegex')?.checked;
+
+  if (!find) return toast('Masukkan teks yang dicari', 'warning');
+
+  if (frMode === 'global') {
+    if (!confirm('Yakin ingin menerapkan perubahan ke SEMUA custom commands?')) return;
+    const res = await api('POST', '/find-replace/global', { find, replace, caseSensitive, useRegex });
+    if (res.ok !== false) toast(`Diterapkan ke ${res.commandsAffected} commands!`, 'success');
+    else toast(res.error, 'error');
+  } else {
+    const trigger = document.getElementById('frCommandSelect')?.value;
+    if (!trigger) return toast('Pilih command terlebih dahulu', 'warning');
+    const res = await api('POST', '/find-replace/apply', { trigger, find, replace, caseSensitive, useRegex });
+    if (res.ok !== false) toast('Perubahan diterapkan!', 'success');
+    else toast(res.error, 'error');
+  }
+}
+
+function resetFR() {
+  document.getElementById('frFind').value = '';
+  document.getElementById('frReplace').value = '';
+  document.getElementById('frCaseSensitive').checked = false;
+  document.getElementById('frUseRegex').checked = false;
+  updatePreview();
+}
+
+// ── SETTINGS ──
+async function saveSettings() {
+  const settings = {
+    botName: document.getElementById('settingBotName')?.value?.trim(),
+    maxHistory: parseInt(document.getElementById('settingMaxHistory')?.value) || 10,
+    welcomeEnabled: document.getElementById('settingWelcome')?.checked,
+    welcomeMessage: document.getElementById('settingWelcomeMsg')?.value?.trim(),
+  };
+  const res = await api('PATCH', '/settings', settings);
+  if (res.ok !== false) toast('Pengaturan disimpan!', 'success');
+  else toast(res.error, 'error');
+}
+
+function toggleWelcome(v) {
+  document.getElementById('welcomeMsgGroup').style.display = v ? 'block' : 'none';
+}
+
+async function toggleGlobalAI(enabled) {
+  document.getElementById('globalAiToggle').checked = enabled;
+  document.getElementById('settingAiEnabled') && (document.getElementById('settingAiEnabled').checked = enabled);
+  const res = await api('PATCH', '/settings', { aiEnabled: enabled });
+  if (res.ok !== false) toast('AI ' + (enabled ? 'diaktifkan' : 'dimatikan'), enabled ? 'success' : 'warning');
+  else toast(res.error, 'error');
+}
+
+async function saveSystemPrompt() {
+  const prompt = document.getElementById('systemPromptInput')?.value?.trim();
+  if (!prompt) return toast('Prompt tidak boleh kosong', 'error');
+  const res = await api('PATCH', '/settings', { aiSystemPrompt: prompt });
+  if (res.ok !== false) toast('System prompt disimpan!', 'success');
+  else toast(res.error, 'error');
+}
+
+function resetSystemPrompt() {
+  const def = `Kamu adalah asisten WhatsApp yang cerdas, ramah, dan helpful bernama "BotAI". 
+Kamu bisa membantu dengan berbagai pertanyaan: coding, matematika, bahasa, umum, dan lainnya.
+Jawab dalam Bahasa Indonesia kecuali pengguna bertanya dalam bahasa lain.
+Jawab secara ringkas dan jelas. Gunakan emoji secukupnya agar terasa lebih hidup.
+Jika diminta menulis kode, berikan kode yang bersih dan ada penjelasannya.
+Maksimal jawaban 500 kata kecuali diminta lebih detail.`;
+  document.getElementById('systemPromptInput').value = def;
+  toast('Prompt direset ke default', 'info');
+}
+
+async function resetStats() {
+  if (!confirm('Reset semua statistik?')) return;
+  const res = await api('POST', '/reset-stats');
+  if (res.ok !== false) toast('Statistik direset', 'success');
+}
+
+async function resetHistory() {
+  const chatId = document.getElementById('resetHistoryChatId')?.value?.trim();
+  const res = await api('POST', '/reset-history', { chatId: chatId || undefined });
+  if (res.ok !== false) toast(chatId ? `Riwayat ${chatId} dihapus` : 'Semua riwayat dihapus', 'success');
+  else toast(res.error, 'error');
+}
+
+// ── SEND MESSAGE ──
+async function sendMessage() {
+  const to = document.getElementById('sendTo')?.value?.trim();
+  const message = document.getElementById('sendMsg')?.value?.trim();
+  if (!to || !message) return toast('Nomor dan pesan wajib diisi', 'error');
+  const res = await api('POST', '/send', { to, message });
+  if (res.ok !== false) {
+    toast('Pesan terkirim!', 'success');
+    document.getElementById('sendMsg').value = '';
+  } else toast(res.error, 'error');
+}
+
+async function sendBroadcast() {
+  const raw = document.getElementById('broadcastContacts')?.value?.trim();
+  const message = document.getElementById('broadcastMsg')?.value?.trim();
+  if (!raw || !message) return toast('Kontak dan pesan wajib diisi', 'error');
+  const contacts = raw.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!contacts.length) return toast('Tidak ada kontak valid', 'error');
+  if (!confirm(`Kirim ke ${contacts.length} kontak?`)) return;
+  const res = await api('POST', '/broadcast', { contacts, message });
+  if (res.ok !== false) toast(`Broadcast ke ${contacts.length} kontak dikirim!`, 'success');
+  else toast(res.error, 'error');
+}
+
+// ── IMPORT/EXPORT ──
+function switchImportTab(mode) {
+  importTabMode = mode;
+  document.getElementById('importFile').style.display = mode === 'file' ? 'block' : 'none';
+  document.getElementById('importPaste').style.display = mode === 'paste' ? 'block' : 'none';
+  document.querySelectorAll('.tabs .tab').forEach((t, i) => t.classList.toggle('active', (i === 0 && mode === 'file') || (i === 1 && mode === 'paste')));
+}
+
+function handleImportFile() {
+  const file = document.getElementById('importInput').files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const commands = JSON.parse(e.target.result);
+      const res = await api('POST', '/import-commands', { commands });
+      if (res.ok !== false) toast(`${res.imported} commands diimpor!`, 'success');
+      else toast(res.error, 'error');
+    } catch (err) { toast('File JSON tidak valid', 'error'); }
+  };
+  reader.readAsText(file);
+}
+
+async function importFromPaste() {
+  try {
+    const commands = JSON.parse(document.getElementById('importPasteData').value);
+    const res = await api('POST', '/import-commands', { commands });
+    if (res.ok !== false) toast(`${res.imported} commands diimpor!`, 'success');
+    else toast(res.error, 'error');
+  } catch { toast('Format JSON tidak valid', 'error'); }
+}
+
+async function previewExport() {
+  const res = await api('GET', '/export-commands');
+  document.getElementById('exportPreview').textContent = JSON.stringify(res.commands || [], null, 2);
+}
+
+async function downloadExport() {
+  const res = await api('GET', '/export-commands');
+  const blob = new Blob([JSON.stringify(res.commands || [], null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = `botai-commands-${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); URL.revokeObjectURL(url);
+  toast('File diunduh!', 'success');
+}
+
+async function copyExport() {
+  const res = await api('GET', '/export-commands');
+  await navigator.clipboard.writeText(JSON.stringify(res.commands || [], null, 2));
+  toast('Disalin ke clipboard!', 'success');
+}
+
+// ── NAVIGATION ──
+const pageTitles = {
+  overview: '📊 Overview', messages: '💬 Pesan Live', send: '📤 Kirim Pesan',
+  commands: '⚡ Custom Commands', autoreply: '🔁 Auto Reply', contacts: '👥 Kontak',
+  findreplace: '🔍 Find & Replace', settings: '⚙️ Pengaturan', aiprompt: '🧠 AI Prompt',
+  importexport: '📦 Import/Export'
+};
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const el = document.getElementById('page-' + name);
+  if (el) el.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.textContent.toLowerCase().includes(name.replace('-', ' ').toLowerCase()) ||
+        n.getAttribute('onclick')?.includes(`'${name}'`)) n.classList.add('active');
+  });
+  document.getElementById('pageTitle').textContent = pageTitles[name] || name;
+  if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('open');
+
+  if (name === 'findreplace') { renderFRCommandSelect(); updatePreview(); }
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+// ── MODAL ──
+function openModal(id) {
+  document.getElementById(id)?.classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById(id)?.classList.remove('open');
+  if (id === 'addCommandModal') {
+    document.getElementById('editCommandOldTrigger').value = '';
+    document.getElementById('addCommandModalTitle').textContent = '➕ Tambah Custom Command';
+    document.getElementById('saveCommandBtn').textContent = '💾 Simpan';
+  }
+}
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', (e) => { if (e.target === o) o.classList.remove('open'); });
+});
+
+// ── TOAST ──
+function toast(msg, type = 'info') {
+  const icons = { success: '✅', error: '❌', info: '💡', warning: '⚠️' };
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span class="toast-icon">${icons[type]}</span><span>${msg}</span>`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateX(60px)'; el.style.transition = 'all .3s'; setTimeout(() => el.remove(), 300); }, 3000);
+}
+
+// ── HELPERS ──
+function escHtml(str) {
+  return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatUptime(seconds) {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds/60)}m ${seconds%60}s`;
+  const h = Math.floor(seconds/3600), m = Math.floor((seconds%3600)/60);
+  return `${h}j ${m}m`;
+}
+
+function fmtBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024, sizes = ['B','KB','MB','GB'];
+  const i = Math.floor(Math.log(bytes)/Math.log(k));
+  return parseFloat((bytes/Math.pow(k,i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+function copyToClip(text) {
+  navigator.clipboard.writeText(text).then(() => toast(`Disalin: ${text}`, 'success'));
+}
+
+// ── KEYBOARD ──
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    openModal('addCommandModal');
+    document.getElementById('cmdTrigger')?.focus();
+  }
+});
+
+// ── INIT ──
+connectWS();
+refreshState();
+
+// ── OVERLAY CLOSE for modals ──
+window.addEventListener('click', (e) => {
+  if (e.target.classList.contains('modal-overlay')) {
+    e.target.classList.remove('open');
+  }
+});
+</script>
+</body>
+</html>
